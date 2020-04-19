@@ -1,5 +1,7 @@
 <?php
+
 namespace SDB;
+
 use PDO;
 
 require_once "SQueryObject.php";
@@ -7,10 +9,9 @@ require_once "SQueryObject.php";
 define('DEFAULT_JOIN_TYPE', 'INNER');
 define('DEFAULT_WHERE_COMPARER', '=');
 define('SDB_DEFAULT', 'DEFAULT');
-
 final class Db
 {
-    protected $whereCompares = ['<', '>', '=', '<=', '>=', '!='];
+    protected $whereCompares = ['<', '>', '=', '<=', '>=', '!=','EXISTS'];
 
     protected static $_instance;
 
@@ -73,11 +74,11 @@ final class Db
         return $queryData;
     }
 
-    public function buildQuery($debug = false)
+    public function save($debug = false)
     {
         if ($debug) echo $this->result . " data";
         $this->clear();
-        $object = new SQueryObject($this->result);
+        $object = new SQueryObject( '(' . $this->result . ')');
         $this->result = '';
         return $object;
     }
@@ -85,7 +86,7 @@ final class Db
 
     private function aggregate(&$array, $aggregateType)
     {
-        $operator = null;
+        $operator = DEFAULT_WHERE_COMPARER;
         $compareValue = null;
 
         $toMergeStr = [];
@@ -96,25 +97,22 @@ final class Db
                 $operator = reset($value);
                 $compareValue = end($value);
 
-                if (is_object($compareValue)) {
-                    $compareValue = $compareValue->getQuery();
-                }
+                $compareValue = is_object($compareValue)
+                    ? $compareValue->getQuery()
+                    : $this->toTbStr($compareValue);
 
-            } else if ((is_array($value) && count($value) == 1) || !is_array($value)) {
+            } else if (is_object($value))
+                $compareValue = $value->getQuery();
 
-                $operator = DEFAULT_WHERE_COMPARER;
+            else
+                $operator = $this->toTbStr($value);
 
-                if (is_object($value)) {
-                    $compareValue = $value->getQuery();
-                } else
-                    $compareValue = $value;
-
-            }
-
-            if (in_array($operator, $this->whereCompares)) {
-                $toMergeStr[] = $col . ' ' . $operator . ' ' . $this->toTbStr($compareValue);
-            }
+            if (in_array($operator, $this->whereCompares))
+                $toMergeStr[] = $col . ' ' . $operator . ' ' . $compareValue;
         }
+
+
+
         $this->result .= implode(' ' . $aggregateType . ' ', $toMergeStr);
     }
 
@@ -222,12 +220,6 @@ final class Db
     {
         $this->result .= $all ? " UNION ALL " : " UNION ";
         $this->clear();
-        return $this;
-    }
-
-    public function create(array $array)
-    {
-        $this->create = array_merge($this->create, $array);
         return $this;
     }
 

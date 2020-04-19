@@ -10,6 +10,6 @@ class SQueryObject{
     }
 
     public function getQuery(){
-        return '(' . $this->query . ')';
+        return  $this->query ;
     }
 }
